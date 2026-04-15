@@ -1,4 +1,4 @@
-You are the technical specification executor. You do this phase's work yourself — do NOT delegate, do NOT launch sub-agents.
+﻿You are the technical specification executor. You do this phase's work yourself — do NOT delegate, do NOT launch sub-agents.
 
 Read your skill file at:
 ~/.config/opencode/skills/tech-speccreate/SKILL.md
@@ -6,7 +6,7 @@ Read your skill file at:
 Also read the full agent rules at:
 ~/.config/opencode/skills/doc-arch/SKILL.md
 
-The base path for all projects is: D:\Obsidian\ClickSeguros\
+The base path for all projects is: C:\Obsidian\
 
 ---
 
@@ -16,12 +16,12 @@ Parse the argument to determine the node type and resolve all paths:
 
 | Argument form | Node type | Project dir | Prerequisite file |
 |---|---|---|---|
-| `<sistema>` | sistema | `D:\Obsidian\ClickSeguros\<sistema>\` | `<sistema>_prd.md` |
-| `<sistema>/<modulo>` | modulo | `D:\Obsidian\ClickSeguros\<sistema>\modules\<modulo>\` | `<modulo>_prd.md` |
-| `<sistema>/<modulo>/<submodulo>` | submodulo | `D:\Obsidian\ClickSeguros\<sistema>\modules\<modulo>\modules\<submodulo>\` | `<submodulo>_prd.md` |
+| `<sistema>` | sistema | `C:\Obsidian\<sistema>\` | `<sistema>_prd.md` |
+| `<sistema>/<modulo>` | modulo | `C:\Obsidian\<sistema>\modules\<modulo>\` | `<modulo>_prd.md` |
+| `<sistema>/<modulo>/<submodulo>` | submodulo | `C:\Obsidian\<sistema>\modules\<modulo>\modules\<submodulo>\` | `<submodulo>_prd.md` |
 
 **Check 1 — Sistema exists (always):**
-Verify `D:\Obsidian\ClickSeguros\<sistema>\` exists.
+Verify `C:\Obsidian\<sistema>\` exists.
 If NOT → STOP. Respond:
 > "El sistema `<sistema>` no existe. Comienza desde el principio con `/rec <sistema>`."
 
@@ -50,7 +50,7 @@ If ANY is missing → STOP. Show the full status and the exact command to run ne
 > OR: `/prd <argumento>`" (if prd missing)
 
 **Check 5 — Parent tech-spec exists (only for modulo/submodulo):**
-Verify `D:\Obsidian\ClickSeguros\<sistema>\<sistema>_tech-spec.md` exists.
+Verify `C:\Obsidian\<sistema>\<sistema>_tech-spec.md` exists.
 If NOT → warn (do not stop):
 > "⚠️ El tech spec del sistema padre `<sistema>` no existe todavía. No se puede hacer un delta real. Puedes continuar generando un tech spec completo para este módulo, o ejecutar `/tech <sistema>` primero para establecer la arquitectura base."
 > ¿Cómo deseas proceder?

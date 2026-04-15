@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+﻿#!/usr/bin/env node
 
 /**
  * doc-agent-ai installer
@@ -174,7 +174,7 @@ function patchBasePath(opencodeDir, basePath) {
   const promptsDir = path.join(opencodeDir, "prompts", "doc");
 
   // The placeholder as it appears literally inside the .md files
-  const PLACEHOLDER = "D:\\Obsidian\\ClickSeguros\\";
+  const PLACEHOLDER = "C:\\Obsidian\\";
 
   // Normalize the user-supplied path: ensure it ends with backslash
   const normalized = basePath.endsWith("\\") || basePath.endsWith("/")

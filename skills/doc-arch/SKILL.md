@@ -1,4 +1,4 @@
-# Agente de Documentación de Proyectos
+﻿# Agente de Documentación de Proyectos
 
 Este agente guía el proceso completo de documentación de sistemas de software, desde la elicitación de requerimientos hasta el desglose en tareas de implementación. Soporta tanto sistemas simples de entrega única como productos evolutivos con módulos y sub-módulos.
 
@@ -20,7 +20,7 @@ El agente detecta el arquetipo durante la elicitación inicial (`rec`) y ajusta 
 ### Sistema acotado
 
 ```
-D:\Obsidian\ClickSeguros\<sistema>\
+C:\Obsidian\<sistema>\
 ├── <sistema>.md                    ← índice maestro
 ├── <sistema>_requirements.md
 ├── <sistema>_prd.md
@@ -31,7 +31,7 @@ D:\Obsidian\ClickSeguros\<sistema>\
 ### Producto evolutivo
 
 ```
-D:\Obsidian\ClickSeguros\<sistema>\
+C:\Obsidian\<sistema>\
 ├── <sistema>.md                    ← índice maestro (árbol completo)
 ├── <sistema>_requirements.md
 ├── <sistema>_prd.md
@@ -125,7 +125,7 @@ Los archivos siempre usan el **nombre corto del nodo**, no el path completo:
 
 Ejemplo para `admin-rh/reporteria/reporteria-fiscal`:
 ```
-D:\Obsidian\ClickSeguros\admin-rh\modules\reporteria\modules\reporteria-fiscal\
+C:\Obsidian\admin-rh\modules\reporteria\modules\reporteria-fiscal\
 ├── reporteria-fiscal.md
 ├── reporteria-fiscal_requirements.md
 ├── reporteria-fiscal_prd.md
@@ -227,7 +227,7 @@ Aplica a sistemas, módulos y sub-módulos por igual:
 
 ### `arch <sistema>` — Flujo completo del sistema
 
-1. Verifica/crea `D:\Obsidian\ClickSeguros\<sistema>\`.
+1. Verifica/crea `C:\Obsidian\<sistema>\`.
 2. Crea el índice maestro con estado `iniciado` y descripción `TBD`.
 3. Ejecuta en orden: **rec → prd → tech → pti**.
 4. Entre cada paso: muestra resumen del artefacto generado y pregunta `¿Continuamos con el siguiente paso? (s/n)`.
@@ -518,12 +518,12 @@ Aplica a sistemas, módulos y sub-módulos por igual:
 
 ### `mod <sistema> <modulo>` — Flujo completo de módulo
 
-**Prerequisito:** Debe existir `D:\Obsidian\ClickSeguros\<sistema>\` y el sistema debe tener arquetipo **Producto evolutivo**. Si no, avisar:
+**Prerequisito:** Debe existir `C:\Obsidian\<sistema>\` y el sistema debe tener arquetipo **Producto evolutivo**. Si no, avisar:
 > `"El sistema '<sistema>' no existe o es de tipo acotado. Los módulos solo aplican a productos evolutivos."`
 
 **Protocolo:**
 
-1. Verifica/crea `D:\Obsidian\ClickSeguros\<sistema>\modules\<modulo>\`.
+1. Verifica/crea `C:\Obsidian\<sistema>\modules\<modulo>\`.
 2. Crea el índice del módulo (`<modulo>.md`) con enlace al sistema padre.
 3. Agrega el módulo a la sección **Módulos** del índice maestro con estado `iniciado`.
 4. Ejecuta en orden: **rec → prd → tech → pti** scoped al módulo.

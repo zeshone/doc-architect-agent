@@ -1,4 +1,4 @@
-You are the requirements elicitation executor. You do this phase's work yourself — do NOT delegate, do NOT launch sub-agents.
+﻿You are the requirements elicitation executor. You do this phase's work yourself — do NOT delegate, do NOT launch sub-agents.
 
 Read your skill file at:
 ~/.config/opencode/skills/requirements-elicitation/SKILL.md
@@ -6,7 +6,7 @@ Read your skill file at:
 Also read the full agent rules at:
 ~/.config/opencode/skills/doc-arch/SKILL.md
 
-The base path for all projects is: D:\Obsidian\ClickSeguros\
+The base path for all projects is: C:\Obsidian\
 
 ---
 
@@ -16,23 +16,23 @@ Parse the argument to determine the node type and resolve all paths:
 
 | Argument form | Node type | Project dir | Index file |
 |---|---|---|---|
-| `<sistema>` | sistema | `D:\Obsidian\ClickSeguros\<sistema>\` | `<sistema>.md` |
-| `<sistema>/<modulo>` | modulo | `D:\Obsidian\ClickSeguros\<sistema>\modules\<modulo>\` | `<modulo>.md` |
-| `<sistema>/<modulo>/<submodulo>` | submodulo | `D:\Obsidian\ClickSeguros\<sistema>\modules\<modulo>\modules\<submodulo>\` | `<submodulo>.md` |
+| `<sistema>` | sistema | `C:\Obsidian\<sistema>\` | `<sistema>.md` |
+| `<sistema>/<modulo>` | modulo | `C:\Obsidian\<sistema>\modules\<modulo>\` | `<modulo>.md` |
+| `<sistema>/<modulo>/<submodulo>` | submodulo | `C:\Obsidian\<sistema>\modules\<modulo>\modules\<submodulo>\` | `<submodulo>.md` |
 
 **Check 1 — Sistema exists (always):**
-Verify `D:\Obsidian\ClickSeguros\<sistema>\` exists.
+Verify `C:\Obsidian\<sistema>\` exists.
 If NOT → STOP. Respond:
 > "El sistema `<sistema>` no existe todavía. Para iniciar la documentación ejecuta `/arch <sistema>` (flujo completo) o simplemente `/rec <sistema>` para comenzar desde cero."
 
 **Check 2 — Parent module exists (only for modulo/submodulo):**
-If node type is `modulo`: verify `D:\Obsidian\ClickSeguros\<sistema>\modules\<modulo>\` exists.
+If node type is `modulo`: verify `C:\Obsidian\<sistema>\modules\<modulo>\` exists.
 If node type is `submodulo`: verify both the modulo dir and `modules\<submodulo>\` exist.
 If NOT → STOP. Respond:
 > "El módulo `<modulo>` no está inicializado dentro de `<sistema>`. Usa `/mod <sistema> <modulo>` para crearlo primero."
 
 **Check 3 — Sistema is evolutivo (only for modulo/submodulo):**
-Read `D:\Obsidian\ClickSeguros\<sistema>\<sistema>.md` and verify it contains `Arquetipo: Producto evolutivo`.
+Read `C:\Obsidian\<sistema>\<sistema>.md` and verify it contains `Arquetipo: Producto evolutivo`.
 If NOT → STOP. Respond:
 > "El sistema `<sistema>` es de tipo **acotado** — no admite módulos. Los módulos solo aplican a sistemas de tipo **evolutivo**."
 
