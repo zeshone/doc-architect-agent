@@ -10,10 +10,11 @@ import fs from "fs";
 import path from "path";
 import readline from "readline";
 import os from "os";
+import { execSync } from "child_process";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const VERSION = "1.1.0";
+const VERSION = "1.2.0";
 const AGENT_IDS = ["doc-arch", "doc-rec", "doc-prd", "doc-tech", "doc-pti"];
 
 const INSTALLER_DIR = path
@@ -25,6 +26,7 @@ const OPENCODE_DIR = path.join(HOME, ".config", "opencode");
 const OPENCODE_JSON = path.join(OPENCODE_DIR, "opencode.json");
 const QWEN_DIR = path.join(HOME, ".qwen");
 const QWEN_SETTINGS = path.join(QWEN_DIR, "settings.json");
+const COPILOT_DIR = path.join(HOME, ".copilot");
 
 const PLACEHOLDER = "C:\\Obsidian\\";
 
@@ -88,9 +90,19 @@ function normalizeBasePath(raw) {
 // ─── Platform detection ───────────────────────────────────────────────────────
 
 function detectPlatforms() {
+  let copilot = false;
+  if (fs.existsSync(COPILOT_DIR)) {
+    try {
+      execSync("code --version", { stdio: "ignore" });
+      copilot = true;
+    } catch {
+      copilot = false;
+    }
+  }
   return {
     opencode: fs.existsSync(OPENCODE_JSON),
     qwen: fs.existsSync(QWEN_DIR),
+    copilot,
   };
 }
 
@@ -136,6 +148,21 @@ function validateSourceFiles(platforms) {
       "agents-qwen/doc-prd.md",
       "agents-qwen/doc-tech.md",
       "agents-qwen/doc-pti.md"
+    );
+  }
+
+  if (platforms.copilot) {
+    required.push(
+      "prompts-copilot/doc-arch.md",
+      "prompts-copilot/doc-rec.md",
+      "prompts-copilot/doc-prd.md",
+      "prompts-copilot/doc-tech.md",
+      "prompts-copilot/doc-pti.md",
+      "agents-copilot/doc-arch.agent.md",
+      "agents-copilot/doc-rec.agent.md",
+      "agents-copilot/doc-prd.agent.md",
+      "agents-copilot/doc-tech.agent.md",
+      "agents-copilot/doc-pti.agent.md"
     );
   }
 
@@ -365,7 +392,38 @@ function installQwenAgents(basePath) {
   }
 }
 
-// ─── Already-installed check ──────────────────────────────────────────────────
+// ─── GitHub Copilot install ───────────────────────────────────────────────────
+
+function installCopilotPrompts(basePath) {
+  const promptsDir = path.join(COPILOT_DIR, "prompts", "doc");
+  for (const agent of AGENT_IDS) {
+    const src = path.join(INSTALLER_DIR, "prompts-copilot", `${agent}.md`);
+    const dest = path.join(promptsDir, `${agent}.md`);
+    copyFileSync(src, dest);
+    ok(`prompt: ${agent}.md`);
+  }
+  // Patch base path
+  const promptFiles = fs.readdirSync(promptsDir).filter((f) => f.endsWith(".md"));
+  for (const file of promptFiles) {
+    replaceInFile(path.join(promptsDir, file), PLACEHOLDER, basePath);
+  }
+}
+
+function installCopilotAgents(basePath) {
+  const agentsDir = path.join(COPILOT_DIR, "agents");
+  fs.mkdirSync(agentsDir, { recursive: true });
+
+  for (const agent of AGENT_IDS) {
+    const src = path.join(INSTALLER_DIR, "agents-copilot", `${agent}.agent.md`);
+    const dest = path.join(agentsDir, `${agent}.agent.md`);
+    copyFileSync(src, dest);
+    // Patch base path in agent file
+    replaceInFile(dest, PLACEHOLDER, basePath);
+    ok(`agent: ${agent}`);
+  }
+}
+
+// ─── Already-installed check ───────────────────────────────────────────────────
 
 function checkOpencodeAlreadyInstalled() {
   try {
@@ -381,6 +439,14 @@ function checkQwenAlreadyInstalled() {
   if (!fs.existsSync(agentsDir)) return [];
   return AGENT_IDS.filter((id) =>
     fs.existsSync(path.join(agentsDir, `${id}.md`))
+  );
+}
+
+function checkCopilotAlreadyInstalled() {
+  const agentsDir = path.join(COPILOT_DIR, "agents");
+  if (!fs.existsSync(agentsDir)) return [];
+  return AGENT_IDS.filter((id) =>
+    fs.existsSync(path.join(agentsDir, `${id}.agent.md`))
   );
 }
 
@@ -402,10 +468,13 @@ async function main() {
   if (platforms.qwen) ok(`Qwen Code detected  ${c.gray}(${QWEN_DIR})${c.reset}`);
   else warn(`Qwen Code not found  ${c.gray}(${QWEN_DIR} missing)${c.reset}`);
 
-  if (!platforms.opencode && !platforms.qwen) {
+  if (platforms.copilot) ok(`GitHub Copilot detected  ${c.gray}(${COPILOT_DIR} + code CLI)${c.reset}`);
+  else warn(`GitHub Copilot not found  ${c.gray}(${COPILOT_DIR} missing or 'code' not in PATH)${c.reset}`);
+
+  if (!platforms.opencode && !platforms.qwen && !platforms.copilot) {
     console.log();
     err("No supported platform detected.");
-    err("Install opencode (https://opencode.ai) or Qwen Code before running this installer.");
+    err("Install opencode (https://opencode.ai), Qwen Code, or GitHub Copilot in VS Code before running this installer.");
     process.exit(1);
   }
 
@@ -419,19 +488,32 @@ async function main() {
     // ── Platform selection ──
     let installOpencode = platforms.opencode;
     let installQwen = platforms.qwen;
+    let installCopilot = platforms.copilot;
 
-    if (platforms.opencode && platforms.qwen) {
+    const detected = [platforms.opencode, platforms.qwen, platforms.copilot].filter(Boolean).length;
+    if (detected > 1) {
       head("Platform selection");
-      console.log(`${c.gray}  Both platforms detected. Choose which to install:${c.reset}`);
-      console.log(`${c.gray}  [1] opencode only${c.reset}`);
-      console.log(`${c.gray}  [2] Qwen Code only${c.reset}`);
-      console.log(`${c.gray}  [3] Both (default)${c.reset}`);
+      console.log(`${c.gray}  Multiple platforms detected. Choose which to install:${c.reset}`);
+      const options = [];
+      if (platforms.opencode) options.push(["opencode"]);
+      if (platforms.qwen)     options.push(["Qwen Code"]);
+      if (platforms.copilot)  options.push(["GitHub Copilot"]);
+
+      let idx = 1;
+      const labelMap = {};
+      if (platforms.opencode) { console.log(`${c.gray}  [${idx}] opencode only${c.reset}`);        labelMap[idx++] = "opencode"; }
+      if (platforms.qwen)     { console.log(`${c.gray}  [${idx}] Qwen Code only${c.reset}`);       labelMap[idx++] = "qwen"; }
+      if (platforms.copilot)  { console.log(`${c.gray}  [${idx}] GitHub Copilot only${c.reset}`);  labelMap[idx++] = "copilot"; }
+      console.log(`${c.gray}  [${idx}] All (default)${c.reset}`);
       console.log();
-      const choice = await ask(rl, `  Selection ${c.gray}(1/2/3, Enter = both)${c.reset}: `);
-      const sel = choice.trim();
-      if (sel === "1") { installOpencode = true; installQwen = false; }
-      else if (sel === "2") { installOpencode = false; installQwen = true; }
-      // else: both (default)
+      const choice = await ask(rl, `  Selection ${c.gray}(Enter = all)${c.reset}: `);
+      const sel = parseInt(choice.trim(), 10);
+      if (labelMap[sel]) {
+        installOpencode = labelMap[sel] === "opencode";
+        installQwen     = labelMap[sel] === "qwen";
+        installCopilot  = labelMap[sel] === "copilot";
+      }
+      // else: all (default)
     }
 
     // ── Already-installed check ──
@@ -463,7 +545,21 @@ async function main() {
       }
     }
 
-    if (!installOpencode && !installQwen) {
+    if (installCopilot) {
+      const existing = checkCopilotAlreadyInstalled();
+      if (existing.length > 0) {
+        console.log();
+        warn("The following agents are already installed in GitHub Copilot:");
+        existing.forEach((id) => dim(`  - ${id}`));
+        const answer = await ask(rl, `\n  ${c.yellow}Overwrite GitHub Copilot installation?${c.reset} (y/N) `);
+        if (answer.trim().toLowerCase() !== "y") {
+          info("Skipping GitHub Copilot.");
+          installCopilot = false;
+        }
+      }
+    }
+
+    if (!installOpencode && !installQwen && !installCopilot) {
       info("Nothing to install. Exiting.");
       process.exit(0);
     }
@@ -486,9 +582,10 @@ async function main() {
     // ── Confirm ──
     console.log();
     head("Ready to install");
-    if (installOpencode) info(`opencode config:    ${OPENCODE_DIR}`);
-    if (installQwen)     info(`Qwen Code config:   ${QWEN_DIR}`);
-    info(`projects base:      ${basePath}`);
+    if (installOpencode) info(`opencode config:        ${OPENCODE_DIR}`);
+    if (installQwen)     info(`Qwen Code config:       ${QWEN_DIR}`);
+    if (installCopilot)  info(`GitHub Copilot config:  ${COPILOT_DIR}`);
+    info(`projects base:          ${basePath}`);
     console.log();
 
     const confirm = await ask(rl, `  ${c.bold}Proceed?${c.reset} (Y/n) `);
@@ -501,6 +598,7 @@ async function main() {
     head("Installing skills...");
     if (installOpencode) installSkills(path.join(OPENCODE_DIR, "skills"));
     if (installQwen)     installSkills(path.join(QWEN_DIR, "skills"));
+    if (installCopilot)  installSkills(path.join(COPILOT_DIR, "skills"));
 
     // ── Install opencode ──
     if (installOpencode) {
@@ -516,6 +614,13 @@ async function main() {
       head("Installing for Qwen Code...");
       installQwenPrompts(basePath);
       installQwenAgents(basePath);
+    }
+
+    // ── Install GitHub Copilot ──
+    if (installCopilot) {
+      head("Installing for GitHub Copilot...");
+      installCopilotPrompts(basePath);
+      installCopilotAgents(basePath);
     }
 
     // ── Done ──
@@ -555,6 +660,24 @@ async function main() {
         console.log(`  ${c.cyan}${name.padEnd(30)}${c.reset}${c.gray}${desc}${c.reset}`);
       }
       console.log(`\n${c.gray}  Restart Qwen Code for changes to take effect.${c.reset}`);
+      console.log();
+    }
+
+    if (installCopilot) {
+      console.log(`${c.bold}  GitHub Copilot — available agents:${c.reset}`);
+      console.log(`${c.gray}  ────────────────────────────────${c.reset}`);
+      const agents = [
+        ["doc-arch", "Documentation orchestrator (start here — select in Chat)"],
+        ["doc-rec",  "Requirements elicitation executor (delegated)"],
+        ["doc-prd",  "PRD generation executor (delegated)"],
+        ["doc-tech", "Technical specification executor (delegated)"],
+        ["doc-pti",  "Issues breakdown executor (delegated)"],
+      ];
+      for (const [name, desc] of agents) {
+        console.log(`  ${c.cyan}${name.padEnd(30)}${c.reset}${c.gray}${desc}${c.reset}`);
+      }
+      console.log(`\n${c.gray}  In VS Code: open GitHub Copilot Chat → select 'doc-arch' from the agents dropdown.${c.reset}`);
+      console.log(`${c.gray}  Installed to: ${path.join(COPILOT_DIR, "agents")}${c.reset}`);
       console.log();
     }
 
