@@ -172,6 +172,7 @@ function installCommands(opencodeDir) {
 
 function patchBasePath(opencodeDir, basePath) {
   const promptsDir = path.join(opencodeDir, "prompts", "doc");
+  const commandsDir = path.join(opencodeDir, "commands");
 
   // The placeholder as it appears literally inside the .md files
   const PLACEHOLDER = "C:\\Obsidian\\";
@@ -181,11 +182,16 @@ function patchBasePath(opencodeDir, basePath) {
     ? basePath.replace(/\//g, "\\")
     : basePath.replace(/\//g, "\\") + "\\";
 
-  const files = fs.readdirSync(promptsDir).filter((f) => f.endsWith(".md"));
-  for (const file of files) {
-    const filePath = path.join(promptsDir, file);
-    replaceInFile(filePath, PLACEHOLDER, normalized);
+  const promptFiles = fs.readdirSync(promptsDir).filter((f) => f.endsWith(".md"));
+  for (const file of promptFiles) {
+    replaceInFile(path.join(promptsDir, file), PLACEHOLDER, normalized);
   }
+
+  const commandFiles = fs.readdirSync(commandsDir).filter((f) => f.endsWith(".md"));
+  for (const file of commandFiles) {
+    replaceInFile(path.join(commandsDir, file), PLACEHOLDER, normalized);
+  }
+
   ok(`base path set to: ${normalized}`);
 }
 
@@ -366,16 +372,17 @@ async function main() {
 
     // Ask for base path
     console.log(`${c.bold}  Configuration${c.reset}`);
-    console.log(
-      `${c.gray}  This is the root folder where your projects will be documented.${c.reset}`
-    );
+    console.log();
+    console.log(`${c.gray}  Where should the agent save your project documentation?${c.reset}`);
+    console.log(`${c.gray}  This is the root folder where all systems, PRDs and specs will be created.${c.reset}`);
+    console.log(`${c.yellow}  ⚠  If you skip this, files will be saved in the current directory: ${process.cwd()}${c.reset}`);
+    console.log();
 
-    // Default: <cwd>\Obsidian  (where the installer is being run from)
-    const defaultBase = path.join(process.cwd(), "Obsidian") + path.sep;
+    const defaultBase = process.cwd() + path.sep;
 
     const rawBase = await ask(
       rl,
-      `  Base projects path ${c.gray}[${defaultBase}]${c.reset}: `
+      `  Documentation path ${c.gray}(press Enter to use current dir)${c.reset}: `
     );
     const basePath = rawBase.trim() || defaultBase;
     const normalizedBase =

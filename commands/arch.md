@@ -1,4 +1,4 @@
-﻿---
+---
 description: "Documenta un sistema completo en 4 pasos: rec → prd → tech → pti"
 agent: doc-arch
 ---
