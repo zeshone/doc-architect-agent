@@ -1,6 +1,6 @@
 ---
 name: doc-tech
-description: Technical specification executor
+description: "Delegated by doc-arch to generate the technical specification (tech phase) for a system or module. Reads PRD and produces the _tech-spec.md file."
 model: inherit
 approvalMode: auto-edit
 tools:

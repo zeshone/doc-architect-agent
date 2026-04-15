@@ -1,6 +1,6 @@
 ---
 name: doc-arch
-description: Documentation orchestrator — guides the full project documentation workflow
+description: "Use PROACTIVELY for any documentation task: starting a new project doc (/arch), requirements elicitation (/rec), PRD generation (/prd), technical spec (/tech), or issues breakdown (/pti). MUST BE USED when the user mentions documenting a system, module, or project."
 model: inherit
 approvalMode: suggest
 tools:

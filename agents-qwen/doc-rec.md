@@ -1,6 +1,6 @@
 ---
 name: doc-rec
-description: Requirements elicitation executor
+description: "Delegated by doc-arch to run the requirements elicitation phase (rec) for a system or module. Conducts stakeholder interviews and generates the _requirements.md file."
 model: inherit
 approvalMode: auto-edit
 tools:

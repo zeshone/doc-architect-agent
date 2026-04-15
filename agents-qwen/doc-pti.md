@@ -1,6 +1,6 @@
 ---
 name: doc-pti
-description: Issues breakdown executor
+description: "Delegated by doc-arch to generate the issues breakdown (pti phase) for a system or module. Reads PRD and produces the _issues.md file with vertical slices."
 model: inherit
 approvalMode: auto-edit
 tools:

@@ -1,6 +1,6 @@
 ---
 name: doc-prd
-description: PRD generation executor
+description: "Delegated by doc-arch to generate the Product Requirements Document (prd phase) for a system or module. Reads requirements and produces the _prd.md file."
 model: inherit
 approvalMode: auto-edit
 tools:
