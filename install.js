@@ -1,8 +1,9 @@
-﻿#!/usr/bin/env node
+#!/usr/bin/env node
 
 /**
  * doc-agent-ai installer
- * Installs the documentation workflow agent into an existing opencode setup.
+ * Detects available platforms (opencode / Qwen Code) and installs agents accordingly.
+ * Each platform is optional — at least one must be present.
  */
 
 import fs from "fs";
@@ -12,12 +13,20 @@ import os from "os";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const VERSION = "1.0.0";
+const VERSION = "1.1.0";
 const AGENT_IDS = ["doc-arch", "doc-rec", "doc-prd", "doc-tech", "doc-pti"];
 
-const INSTALLER_DIR = path.dirname(new URL(import.meta.url).pathname).replace(/^\/([A-Z]:)/, "$1");
-const OPENCODE_DIR = path.join(os.homedir(), ".config", "opencode");
+const INSTALLER_DIR = path
+  .dirname(new URL(import.meta.url).pathname)
+  .replace(/^\/([A-Z]:)/, "$1");
+
+const HOME = os.homedir();
+const OPENCODE_DIR = path.join(HOME, ".config", "opencode");
 const OPENCODE_JSON = path.join(OPENCODE_DIR, "opencode.json");
+const QWEN_DIR = path.join(HOME, ".qwen");
+const QWEN_SETTINGS = path.join(QWEN_DIR, "settings.json");
+
+const PLACEHOLDER = "C:\\Obsidian\\";
 
 // ─── Colors ───────────────────────────────────────────────────────────────────
 
@@ -33,11 +42,12 @@ const c = {
   gray: "\x1b[90m",
 };
 
-const ok = (msg) => console.log(`  ${c.green}✔${c.reset} ${msg}`);
+const ok   = (msg) => console.log(`  ${c.green}✔${c.reset} ${msg}`);
 const warn = (msg) => console.log(`  ${c.yellow}⚠${c.reset}  ${msg}`);
-const err = (msg) => console.log(`  ${c.red}✖${c.reset} ${msg}`);
+const err  = (msg) => console.log(`  ${c.red}✖${c.reset} ${msg}`);
 const info = (msg) => console.log(`  ${c.blue}→${c.reset} ${msg}`);
-const dim = (msg) => console.log(`${c.gray}  ${msg}${c.reset}`);
+const dim  = (msg) => console.log(`${c.gray}  ${msg}${c.reset}`);
+const head = (msg) => console.log(`\n${c.bold}  ${msg}${c.reset}`);
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -68,32 +78,27 @@ function replaceInFile(filePath, search, replace) {
   fs.writeFileSync(filePath, content.replaceAll(search, replace));
 }
 
-// ─── Pre-flight ───────────────────────────────────────────────────────────────
-
-function checkOpencode() {
-  if (!fs.existsSync(OPENCODE_JSON)) {
-    err(`opencode.json not found at: ${OPENCODE_JSON}`);
-    err("Make sure opencode is installed before running this installer.");
-    err("Install opencode: https://opencode.ai");
-    process.exit(1);
-  }
+function normalizeBasePath(raw) {
+  const trimmed = raw.trim();
+  if (!trimmed) return process.cwd() + path.sep;
+  const withBackslash = trimmed.replace(/\//g, "\\");
+  return withBackslash.endsWith("\\") ? withBackslash : withBackslash + "\\";
 }
 
-function checkAlreadyInstalled() {
-  try {
-    const config = JSON.parse(fs.readFileSync(OPENCODE_JSON, "utf8"));
-    const installed = AGENT_IDS.filter((id) => config.agent?.[id]);
-    if (installed.length > 0) {
-      return installed;
-    }
-  } catch {
-    // JSON parse error handled later
-  }
-  return [];
+// ─── Platform detection ───────────────────────────────────────────────────────
+
+function detectPlatforms() {
+  return {
+    opencode: fs.existsSync(OPENCODE_JSON),
+    qwen: fs.existsSync(QWEN_DIR),
+  };
 }
 
-function validateSourceFiles() {
+// ─── Source file validation ───────────────────────────────────────────────────
+
+function validateSourceFiles(platforms) {
   const required = [
+    // Skills (shared by both platforms)
     "skills/doc-arch/SKILL.md",
     "skills/requirements-elicitation/SKILL.md",
     "skills/requirements-elicitation/references/elicitation-techniques.md",
@@ -101,18 +106,38 @@ function validateSourceFiles() {
     "skills/tech-speccreate/SKILL.md",
     "skills/tech-speccreate/references/template.md",
     "skills/prd-to-issues/SKILL.md",
-    "prompts/doc-arch.md",
-    "prompts/doc-rec.md",
-    "prompts/doc-prd.md",
-    "prompts/doc-tech.md",
-    "prompts/doc-pti.md",
-    "commands/arch.md",
-    "commands/rec.md",
-    "commands/prd.md",
-    "commands/tech.md",
-    "commands/pti.md",
-    "commands/mod.md",
   ];
+
+  if (platforms.opencode) {
+    required.push(
+      "prompts/doc-arch.md",
+      "prompts/doc-rec.md",
+      "prompts/doc-prd.md",
+      "prompts/doc-tech.md",
+      "prompts/doc-pti.md",
+      "commands/arch.md",
+      "commands/rec.md",
+      "commands/prd.md",
+      "commands/tech.md",
+      "commands/pti.md",
+      "commands/mod.md"
+    );
+  }
+
+  if (platforms.qwen) {
+    required.push(
+      "prompts-qwen/doc-arch.md",
+      "prompts-qwen/doc-rec.md",
+      "prompts-qwen/doc-prd.md",
+      "prompts-qwen/doc-tech.md",
+      "prompts-qwen/doc-pti.md",
+      "agents-qwen/doc-arch.md",
+      "agents-qwen/doc-rec.md",
+      "agents-qwen/doc-prd.md",
+      "agents-qwen/doc-tech.md",
+      "agents-qwen/doc-pti.md"
+    );
+  }
 
   const missing = required.filter(
     (f) => !fs.existsSync(path.join(INSTALLER_DIR, f))
@@ -126,10 +151,9 @@ function validateSourceFiles() {
   }
 }
 
-// ─── Install steps ────────────────────────────────────────────────────────────
+// ─── Shared: install skills ───────────────────────────────────────────────────
 
-function installSkills() {
-  const skillsDir = path.join(OPENCODE_DIR, "skills");
+function installSkills(skillsDir) {
   const skills = [
     "doc-arch",
     "requirements-elicitation",
@@ -137,65 +161,49 @@ function installSkills() {
     "tech-speccreate",
     "prd-to-issues",
   ];
-
   for (const skill of skills) {
-    const src = path.join(INSTALLER_DIR, "skills", skill);
-    const dest = path.join(skillsDir, skill);
-    copyDirSync(src, dest);
+    copyDirSync(
+      path.join(INSTALLER_DIR, "skills", skill),
+      path.join(skillsDir, skill)
+    );
     ok(`skill: ${skill}`);
   }
 }
 
-function installPrompts(opencodeDir) {
-  const promptsDir = path.join(opencodeDir, "prompts", "doc");
-  const prompts = ["doc-arch", "doc-rec", "doc-prd", "doc-tech", "doc-pti"];
+// ─── opencode install ─────────────────────────────────────────────────────────
 
-  for (const prompt of prompts) {
-    const src = path.join(INSTALLER_DIR, "prompts", `${prompt}.md`);
-    const dest = path.join(promptsDir, `${prompt}.md`);
+function installOpencodePrompts(basePath) {
+  const promptsDir = path.join(OPENCODE_DIR, "prompts", "doc");
+  for (const agent of AGENT_IDS) {
+    const src = path.join(INSTALLER_DIR, "prompts", `${agent}.md`);
+    const dest = path.join(promptsDir, `${agent}.md`);
     copyFileSync(src, dest);
-    ok(`prompt: ${prompt}.md`);
+    ok(`prompt: ${agent}.md`);
+  }
+  // Patch base path
+  const promptFiles = fs.readdirSync(promptsDir).filter((f) => f.endsWith(".md"));
+  for (const file of promptFiles) {
+    replaceInFile(path.join(promptsDir, file), PLACEHOLDER, basePath);
   }
 }
 
-function installCommands(opencodeDir) {
-  const commandsDir = path.join(opencodeDir, "commands");
+function installOpencodeCommands(basePath) {
+  const commandsDir = path.join(OPENCODE_DIR, "commands");
   const commands = ["arch", "rec", "prd", "tech", "pti", "mod"];
-
   for (const cmd of commands) {
     const src = path.join(INSTALLER_DIR, "commands", `${cmd}.md`);
     const dest = path.join(commandsDir, `${cmd}.md`);
     copyFileSync(src, dest);
     ok(`command: /${cmd}`);
   }
+  // Patch base path
+  const cmdFiles = fs.readdirSync(commandsDir).filter((f) => f.endsWith(".md"));
+  for (const file of cmdFiles) {
+    replaceInFile(path.join(commandsDir, file), PLACEHOLDER, basePath);
+  }
 }
 
-function patchBasePath(opencodeDir, basePath) {
-  const promptsDir = path.join(opencodeDir, "prompts", "doc");
-  const commandsDir = path.join(opencodeDir, "commands");
-
-  // The placeholder as it appears literally inside the .md files
-  const PLACEHOLDER = "C:\\Obsidian\\";
-
-  // Normalize the user-supplied path: ensure it ends with backslash
-  const normalized = basePath.endsWith("\\") || basePath.endsWith("/")
-    ? basePath.replace(/\//g, "\\")
-    : basePath.replace(/\//g, "\\") + "\\";
-
-  const promptFiles = fs.readdirSync(promptsDir).filter((f) => f.endsWith(".md"));
-  for (const file of promptFiles) {
-    replaceInFile(path.join(promptsDir, file), PLACEHOLDER, normalized);
-  }
-
-  const commandFiles = fs.readdirSync(commandsDir).filter((f) => f.endsWith(".md"));
-  for (const file of commandFiles) {
-    replaceInFile(path.join(commandsDir, file), PLACEHOLDER, normalized);
-  }
-
-  ok(`base path set to: ${normalized}`);
-}
-
-function patchOpenCodeJson(opencodeDir) {
+function patchOpencodeJson(basePath) {
   let config;
   try {
     config = JSON.parse(fs.readFileSync(OPENCODE_JSON, "utf8"));
@@ -207,7 +215,7 @@ function patchOpenCodeJson(opencodeDir) {
   if (!config.agent) config.agent = {};
 
   const win = (p) => p.replace(/\//g, "\\");
-  const promptsBase = win(path.join(opencodeDir, "prompts", "doc"));
+  const promptsBase = win(path.join(OPENCODE_DIR, "prompts", "doc"));
 
   const agentDefs = {
     "doc-arch": {
@@ -251,16 +259,14 @@ function patchOpenCodeJson(opencodeDir) {
     ok(`agent registered: ${id}`);
   }
 
-  // Write back preserving formatting
   fs.writeFileSync(OPENCODE_JSON, JSON.stringify(config, null, 2));
 }
 
-function installSkillRegistry(opencodeDir, basePath) {
-  const atlDir = path.join(opencodeDir, ".atl");
+function installOpencodeSkillRegistry(basePath) {
+  const atlDir = path.join(OPENCODE_DIR, ".atl");
   fs.mkdirSync(atlDir, { recursive: true });
 
-  const registryPath = path.join(atlDir, "skill-registry.md");
-  const skillsBase = path.join(opencodeDir, "skills");
+  const skillsBase = path.join(OPENCODE_DIR, "skills");
 
   const content = `# Skill Registry — doc-agent-ai
 
@@ -324,140 +330,234 @@ function installSkillRegistry(opencodeDir, basePath) {
 - Output is local .md file — do NOT run \`gh issue create\` unless user explicitly requests it
 `;
 
-  fs.writeFileSync(registryPath, content);
+  fs.writeFileSync(path.join(atlDir, "skill-registry.md"), content);
   ok(`skill-registry.md written`);
+}
+
+// ─── Qwen Code install ────────────────────────────────────────────────────────
+
+function installQwenPrompts(basePath) {
+  const promptsDir = path.join(QWEN_DIR, "prompts", "doc");
+  for (const agent of AGENT_IDS) {
+    const src = path.join(INSTALLER_DIR, "prompts-qwen", `${agent}.md`);
+    const dest = path.join(promptsDir, `${agent}.md`);
+    copyFileSync(src, dest);
+    ok(`prompt: ${agent}.md`);
+  }
+  // Patch base path
+  const promptFiles = fs.readdirSync(promptsDir).filter((f) => f.endsWith(".md"));
+  for (const file of promptFiles) {
+    replaceInFile(path.join(promptsDir, file), PLACEHOLDER, basePath);
+  }
+}
+
+function installQwenAgents(basePath) {
+  const agentsDir = path.join(QWEN_DIR, "agents");
+  fs.mkdirSync(agentsDir, { recursive: true });
+
+  for (const agent of AGENT_IDS) {
+    const src = path.join(INSTALLER_DIR, "agents-qwen", `${agent}.md`);
+    const dest = path.join(agentsDir, `${agent}.md`);
+    copyFileSync(src, dest);
+    // Patch base path in agent file
+    replaceInFile(dest, PLACEHOLDER, basePath);
+    ok(`agent: ${agent}`);
+  }
+}
+
+// ─── Already-installed check ──────────────────────────────────────────────────
+
+function checkOpencodeAlreadyInstalled() {
+  try {
+    const config = JSON.parse(fs.readFileSync(OPENCODE_JSON, "utf8"));
+    return AGENT_IDS.filter((id) => config.agent?.[id]);
+  } catch {
+    return [];
+  }
+}
+
+function checkQwenAlreadyInstalled() {
+  const agentsDir = path.join(QWEN_DIR, "agents");
+  if (!fs.existsSync(agentsDir)) return [];
+  return AGENT_IDS.filter((id) =>
+    fs.existsSync(path.join(agentsDir, `${id}.md`))
+  );
 }
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 async function main() {
   console.log();
-  console.log(
-    `${c.bold}${c.cyan}  doc-agent-ai${c.reset} ${c.gray}v${VERSION}${c.reset}`
-  );
-  console.log(
-    `${c.gray}  Documentation workflow agent installer for opencode${c.reset}`
-  );
+  console.log(`${c.bold}${c.cyan}  doc-agent-ai${c.reset} ${c.gray}v${VERSION}${c.reset}`);
+  console.log(`${c.gray}  Documentation workflow agent installer${c.reset}`);
   console.log();
 
-  // Pre-flight
-  console.log(`${c.bold}  Checking requirements...${c.reset}`);
-  checkOpencode();
-  ok("opencode.json found");
-  validateSourceFiles();
-  ok("installer source files complete");
+  // ── Detect platforms ──
+  head("Detecting platforms...");
+  const platforms = detectPlatforms();
+
+  if (platforms.opencode) ok(`opencode detected  ${c.gray}(${OPENCODE_DIR})${c.reset}`);
+  else warn(`opencode not found  ${c.gray}(${OPENCODE_JSON} missing)${c.reset}`);
+
+  if (platforms.qwen) ok(`Qwen Code detected  ${c.gray}(${QWEN_DIR})${c.reset}`);
+  else warn(`Qwen Code not found  ${c.gray}(${QWEN_DIR} missing)${c.reset}`);
+
+  if (!platforms.opencode && !platforms.qwen) {
+    console.log();
+    err("No supported platform detected.");
+    err("Install opencode (https://opencode.ai) or Qwen Code before running this installer.");
+    process.exit(1);
+  }
+
+  // ── Validate source files ──
+  validateSourceFiles(platforms);
   console.log();
 
-  const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout,
-  });
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
 
   try {
-    // Check if already installed
-    const alreadyInstalled = checkAlreadyInstalled();
-    if (alreadyInstalled.length > 0) {
-      warn(`The following agents are already registered in opencode.json:`);
-      alreadyInstalled.forEach((id) => dim(`  - ${id}`));
-      const answer = await ask(
-        rl,
-        `\n  ${c.yellow}Overwrite existing installation?${c.reset} (y/N) `
-      );
-      if (answer.trim().toLowerCase() !== "y") {
-        info("Installation cancelled.");
-        process.exit(0);
-      }
+    // ── Platform selection ──
+    let installOpencode = platforms.opencode;
+    let installQwen = platforms.qwen;
+
+    if (platforms.opencode && platforms.qwen) {
+      head("Platform selection");
+      console.log(`${c.gray}  Both platforms detected. Choose which to install:${c.reset}`);
+      console.log(`${c.gray}  [1] opencode only${c.reset}`);
+      console.log(`${c.gray}  [2] Qwen Code only${c.reset}`);
+      console.log(`${c.gray}  [3] Both (default)${c.reset}`);
       console.log();
+      const choice = await ask(rl, `  Selection ${c.gray}(1/2/3, Enter = both)${c.reset}: `);
+      const sel = choice.trim();
+      if (sel === "1") { installOpencode = true; installQwen = false; }
+      else if (sel === "2") { installOpencode = false; installQwen = true; }
+      // else: both (default)
     }
 
-    // Ask for base path
-    console.log(`${c.bold}  Configuration${c.reset}`);
-    console.log();
+    // ── Already-installed check ──
+    if (installOpencode) {
+      const existing = checkOpencodeAlreadyInstalled();
+      if (existing.length > 0) {
+        console.log();
+        warn("The following agents are already registered in opencode.json:");
+        existing.forEach((id) => dim(`  - ${id}`));
+        const answer = await ask(rl, `\n  ${c.yellow}Overwrite opencode installation?${c.reset} (y/N) `);
+        if (answer.trim().toLowerCase() !== "y") {
+          info("Skipping opencode.");
+          installOpencode = false;
+        }
+      }
+    }
+
+    if (installQwen) {
+      const existing = checkQwenAlreadyInstalled();
+      if (existing.length > 0) {
+        console.log();
+        warn("The following agents are already installed in Qwen Code:");
+        existing.forEach((id) => dim(`  - ${id}`));
+        const answer = await ask(rl, `\n  ${c.yellow}Overwrite Qwen Code installation?${c.reset} (y/N) `);
+        if (answer.trim().toLowerCase() !== "y") {
+          info("Skipping Qwen Code.");
+          installQwen = false;
+        }
+      }
+    }
+
+    if (!installOpencode && !installQwen) {
+      info("Nothing to install. Exiting.");
+      process.exit(0);
+    }
+
+    // ── Base path ──
+    head("Configuration");
     console.log(`${c.gray}  Where should the agent save your project documentation?${c.reset}`);
     console.log(`${c.gray}  This is the root folder where all systems, PRDs and specs will be created.${c.reset}`);
     console.log(`${c.yellow}  ⚠  If you skip this, files will be saved in the current directory: ${process.cwd()}${c.reset}`);
     console.log();
 
-    const defaultBase = process.cwd() + path.sep;
+    const rawBase = await ask(rl, `  Documentation path ${c.gray}(press Enter to use current dir)${c.reset}: `);
+    const basePath = normalizeBasePath(rawBase);
 
-    const rawBase = await ask(
-      rl,
-      `  Documentation path ${c.gray}(press Enter to use current dir)${c.reset}: `
-    );
-    const basePath = rawBase.trim() || defaultBase;
-    const normalizedBase =
-      basePath.endsWith("\\") || basePath.endsWith("/")
-        ? basePath
-        : basePath + "\\";
-
-    // Verify base path exists — warn but don't block
-    if (!fs.existsSync(normalizedBase.replace(/\\$/, ""))) {
-      warn(`Path does not exist yet: ${normalizedBase}`);
+    if (!fs.existsSync(basePath.replace(/\\$/, ""))) {
+      warn(`Path does not exist yet: ${basePath}`);
       warn("The agent will still work — create the folder before first use.");
     }
 
+    // ── Confirm ──
+    console.log();
+    head("Ready to install");
+    if (installOpencode) info(`opencode config:    ${OPENCODE_DIR}`);
+    if (installQwen)     info(`Qwen Code config:   ${QWEN_DIR}`);
+    info(`projects base:      ${basePath}`);
     console.log();
 
-    // Confirm
-    console.log(`${c.bold}  Ready to install${c.reset}`);
-    info(`opencode config: ${OPENCODE_DIR}`);
-    info(`projects base:   ${normalizedBase}`);
-    console.log();
     const confirm = await ask(rl, `  ${c.bold}Proceed?${c.reset} (Y/n) `);
     if (confirm.trim().toLowerCase() === "n") {
       info("Installation cancelled.");
       process.exit(0);
     }
-    console.log();
 
-    // Install
-    console.log(`${c.bold}  Installing skills...${c.reset}`);
-    installSkills();
-    console.log();
+    // ── Install skills (shared, one copy per platform) ──
+    head("Installing skills...");
+    if (installOpencode) installSkills(path.join(OPENCODE_DIR, "skills"));
+    if (installQwen)     installSkills(path.join(QWEN_DIR, "skills"));
 
-    console.log(`${c.bold}  Installing prompts...${c.reset}`);
-    installPrompts(OPENCODE_DIR);
-    console.log();
+    // ── Install opencode ──
+    if (installOpencode) {
+      head("Installing for opencode...");
+      installOpencodePrompts(basePath);
+      installOpencodeCommands(basePath);
+      patchOpencodeJson(basePath);
+      installOpencodeSkillRegistry(basePath);
+    }
 
-    console.log(`${c.bold}  Installing commands...${c.reset}`);
-    installCommands(OPENCODE_DIR);
-    console.log();
+    // ── Install Qwen Code ──
+    if (installQwen) {
+      head("Installing for Qwen Code...");
+      installQwenPrompts(basePath);
+      installQwenAgents(basePath);
+    }
 
-    console.log(`${c.bold}  Patching base path in prompts...${c.reset}`);
-    patchBasePath(OPENCODE_DIR, normalizedBase);
+    // ── Done ──
     console.log();
-
-    console.log(`${c.bold}  Registering agents in opencode.json...${c.reset}`);
-    patchOpenCodeJson(OPENCODE_DIR);
-    console.log();
-
-    console.log(`${c.bold}  Writing skill registry...${c.reset}`);
-    installSkillRegistry(OPENCODE_DIR, normalizedBase);
-    console.log();
-
-    // Done
     console.log(`${c.bold}${c.green}  ✔ Installation complete!${c.reset}`);
     console.log();
-    console.log(`${c.bold}  Available commands in opencode:${c.reset}`);
-    console.log(`${c.gray}  ────────────────────────────────${c.reset}`);
-    const cmds = [
-      ["/arch <sistema>", "Full documentation flow (4 steps)"],
-      ["/rec <sistema>", "Step 1 — Requirements elicitation"],
-      ["/prd <sistema>", "Step 2 — Product Requirements Document"],
-      ["/tech <sistema>", "Step 3 — Technical specification"],
-      ["/pti <sistema>", "Step 4 — Issues breakdown"],
-      ["/mod <sistema> <modulo>", "New module inside an evolutivo system"],
-    ];
-    for (const [cmd, desc] of cmds) {
-      console.log(
-        `  ${c.cyan}${cmd.padEnd(30)}${c.reset}${c.gray}${desc}${c.reset}`
-      );
+
+    if (installOpencode) {
+      console.log(`${c.bold}  opencode — available commands:${c.reset}`);
+      console.log(`${c.gray}  ────────────────────────────────${c.reset}`);
+      const cmds = [
+        ["/arch <sistema>",      "Full documentation flow (4 steps)"],
+        ["/rec <sistema>",       "Step 1 — Requirements elicitation"],
+        ["/prd <sistema>",       "Step 2 — Product Requirements Document"],
+        ["/tech <sistema>",      "Step 3 — Technical specification"],
+        ["/pti <sistema>",       "Step 4 — Issues breakdown"],
+        ["/mod <sistema> <mod>", "New module inside an evolutivo system"],
+      ];
+      for (const [cmd, desc] of cmds) {
+        console.log(`  ${c.cyan}${cmd.padEnd(30)}${c.reset}${c.gray}${desc}${c.reset}`);
+      }
+      console.log(`\n${c.gray}  Restart opencode for changes to take effect.${c.reset}`);
+      console.log();
     }
-    console.log();
-    console.log(
-      `${c.gray}  Restart opencode for changes to take effect.${c.reset}`
-    );
-    console.log();
+
+    if (installQwen) {
+      console.log(`${c.bold}  Qwen Code — available agents:${c.reset}`);
+      console.log(`${c.gray}  ────────────────────────────────${c.reset}`);
+      const agents = [
+        ["doc-arch", "Documentation orchestrator (start here)"],
+        ["doc-rec",  "Requirements elicitation executor"],
+        ["doc-prd",  "PRD generation executor"],
+        ["doc-tech", "Technical specification executor"],
+        ["doc-pti",  "Issues breakdown executor"],
+      ];
+      for (const [name, desc] of agents) {
+        console.log(`  ${c.cyan}${name.padEnd(30)}${c.reset}${c.gray}${desc}${c.reset}`);
+      }
+      console.log(`\n${c.gray}  Restart Qwen Code for changes to take effect.${c.reset}`);
+      console.log();
+    }
+
   } finally {
     rl.close();
   }
